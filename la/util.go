@@ -15,34 +15,73 @@ func gaussian() float64 {
 	return val
 }
 
-func RandVector(n int) Vector {
+func RandVector(n int) []float64 {
 	rand.Seed(time.Now().UnixNano())
 
-	var v Vector
+	var v []float64
 
 	for i := 0; i < n; i++ {
-		v = append(v, Scalar(gaussian()))
+		v = append(v, gaussian())
 	}
 
 	return v
 }
 
 func RandMatrix(n, m int) Matrix {
-	var mat Matrix
+	var d []float64
 
 	for i := 0; i < n; i++ {
-		mat = append(mat, RandVector(m))
+		d = append(d, RandVector(m)...)
 	}
 
-	return mat
+	return Matrix{
+		X:    n,
+		Y:    m,
+		Data: d,
+	}
 }
 
 func ZeroMatrix(n, m int) Matrix {
-	var mat Matrix
+	return Matrix{
+		X:    n,
+		Y:    m,
+		Data: make([]float64, n*m),
+	}
+}
 
-	for i := 0; i < n; i++ {
-		mat = append(mat, make(Vector, m))
+func NewMatrix(data [][]float64) Matrix {
+	n := len(data)
+	m := len(data[0])
+
+	d := make([]float64, n*m)
+
+	for i, _ := range data {
+		for j, _ := range data[i] {
+			d[i*m+j] = data[i][j]
+		}
 	}
 
-	return mat
+	return Matrix{
+		X:    n,
+		Y:    m,
+		Data: d,
+	}
+}
+
+func Dot(a, b []float64) float64 {
+	return AddReduce(MULT(a, b))
+}
+
+func Outer(a, b []float64) Matrix {
+	var d []float64
+
+	for i, _ := range a {
+		d = append(d, Map(b, MultBy(a[i]))...)
+	}
+
+	return Matrix{
+		X:    len(a),
+		Y:    len(b),
+		Data: d,
+	}
 }

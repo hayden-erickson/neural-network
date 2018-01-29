@@ -1,0 +1,19 @@
+mode: atomic
+github.com/hayden-erickson/neural-network/nn/network.go:29.36,31.2 1 27
+github.com/hayden-erickson/neural-network/nn/network.go:33.69,36.14 2 3
+github.com/hayden-erickson/neural-network/nn/network.go:40.2,42.15 2 2
+github.com/hayden-erickson/neural-network/nn/network.go:36.14,38.3 1 1
+github.com/hayden-erickson/neural-network/nn/network.go:45.81,49.38 2 2
+github.com/hayden-erickson/neural-network/nn/network.go:59.2,59.25 1 1
+github.com/hayden-erickson/neural-network/nn/network.go:49.38,52.15 2 3
+github.com/hayden-erickson/neural-network/nn/network.go:56.3,56.38 1 2
+github.com/hayden-erickson/neural-network/nn/network.go:52.15,54.4 1 1
+github.com/hayden-erickson/neural-network/nn/network.go:62.52,65.2 1 2
+github.com/hayden-erickson/neural-network/nn/network.go:72.37,74.31 1 2
+github.com/hayden-erickson/neural-network/nn/network.go:79.2,79.42 1 1
+github.com/hayden-erickson/neural-network/nn/network.go:74.31,77.3 1 1
+github.com/hayden-erickson/neural-network/nn/network.go:82.48,83.22 1 9
+github.com/hayden-erickson/neural-network/nn/network.go:87.2,90.36 3 7
+github.com/hayden-erickson/neural-network/nn/network.go:95.2,98.8 1 7
+github.com/hayden-erickson/neural-network/nn/network.go:83.22,85.3 1 2
+github.com/hayden-erickson/neural-network/nn/network.go:90.36,93.3 2 13
