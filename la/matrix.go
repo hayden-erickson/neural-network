@@ -1,70 +1,67 @@
 package la
 
-type Matrix struct {
-	X    int
-	Y    int
-	Data []float64
+type Matrix interface {
+	T() Matrix
+	Row(int) []float64
+	Col(int) []float64
+	At(i, j int) *float64
+	Shape() []int
 }
 
-func (m Matrix) At(i, j int) *float64 {
-	return &m.Data[i*m.Y+j]
+type matrix struct {
+	data []float64
+	x    int
+	y    int
 }
 
-func (m Matrix) Row(i int) []float64 {
-	return m.Data[(i * m.Y):((i + 1) * m.Y)]
+type transposer struct {
+	m matrix
 }
 
-func (m Matrix) T() Matrix {
-	trans := make([]float64, m.X*m.Y)
-
-	for i := 0; i < m.X; i++ {
-		for j := 0; j < m.Y; j++ {
-			trans[j*m.X+i] = m.Data[i*m.Y+j]
-		}
-	}
-
-	return Matrix{
-		X:    m.Y,
-		Y:    m.X,
-		Data: trans,
-	}
+func (t transposer) T() Matrix {
+	return t.m
 }
 
-func MVDot(a Matrix, b []float64) []float64 {
-	var d []float64
-
-	var from, to int
-
-	for i := 0; i < a.X; i++ {
-		from = i * a.Y
-		to = (i + 1) * a.Y
-
-		d = append(d, Dot(a.Data[from:to], b))
-	}
-
-	return d
+func (t transposer) Row(i int) []float64 {
+	return t.m.Col(i)
 }
 
-func MMDot(a, b Matrix) Matrix {
-	out := Matrix{
-		X:    a.X,
-		Y:    b.Y,
-		Data: make([]float64, a.X*b.Y),
-	}
+func (t transposer) Col(j int) []float64 {
+	return t.m.Row(j)
+}
 
-	bT := b.T()
+func (t transposer) At(i, j int) *float64 {
+	return t.m.At(j, i)
+}
 
-	for i := 0; i < a.X; i++ {
-		for j := 0; j < bT.X; j++ {
-			*out.At(i, j) = Dot(a.Data[(i*a.Y):((i+1)*a.Y)], bT.Data[(j*bT.Y):((j+1)*bT.Y)])
-		}
+func (t transposer) Shape() []int {
+	return []int{t.m.y, t.m.x}
+}
+
+func (m matrix) T() Matrix {
+	return transposer{m: m}
+}
+
+func (m matrix) Row(i int) []float64 {
+	return m.data[(i * m.y):((i + 1) * m.y)]
+}
+
+func (m matrix) Col(j int) []float64 {
+	out := make([]float64, m.x)
+
+	for i := 0; i < m.x; i++ {
+		out[i] = *m.At(i, j)
 	}
 
 	return out
 }
 
-func CopyMatrix(into, from Matrix) {
-	into.X = from.X
-	into.Y = from.Y
-	copy(into.Data, from.Data)
+func (m matrix) At(i, j int) *float64 {
+	return &m.data[i*m.y+j]
 }
+
+func (m matrix) Shape() []int {
+	return []int{m.x, m.y}
+}
+
+// func CreateMatrixAgg

@@ -48,11 +48,12 @@ func generateExamples(n int) []Example {
 var _ = Describe("Sgd", func() {
 	var new, original Network
 	var examples []Example
+	var sgd SGD
 
 	BeforeEach(func() {
 		original, _ = NewNetwork([]int{16, 4})
 
-		sgd := SGD{
+		sgd = SGD{
 			Activation: sigmoid,
 			APrime:     sigmoidPrime,
 			CostPrime:  costPrime,
@@ -64,46 +65,57 @@ var _ = Describe("Sgd", func() {
 
 		examples = generateExamples((rand.Intn(50) * 10) + 1000)
 
-		new = sgd.Run(examples, 50, 100)
 	})
 
-	It("returns a network with a lower cost than the original", func() {
-		var newDesired, newActual, origDesired, origActual [][]float64
-
-		for _, e := range examples {
-			newActual = append(newActual, new.Prop(e.GetInput(), sigmoid))
-			newDesired = append(newDesired, e.GetOutput())
-			origActual = append(origActual, original.Prop(e.GetInput(), sigmoid))
-			origDesired = append(origDesired, e.GetOutput())
-		}
-
-		newCost := cost(newDesired, newActual)
-		origCost := cost(origDesired, origActual)
-
-		fmt.Printf("orig: %f, new: %f", origCost, newCost)
-
-		Expect(newCost).To(BeNumerically(`<`, origCost))
+	Describe("#MRun", func() {
+		It("operates on matricies instead of individual examples", func() {
+			sgd.MRun(examples, 50, 100)
+		})
 	})
 
-	XIt("returns a network with higher accuracy than original", func() {
-		N := 100
-		testData := generateExamples(N)
-		newCorrect := 0
-		origCorrect := 0
+	Describe("#Run", func() {
+		BeforeEach(func() {
+			new = sgd.Run(examples, 50, 100)
+		})
 
-		for _, e := range testData {
-			// fmt.Println(`=== num ===`)
-			if matchesDesired(new.Prop(e.GetInput(), sigmoid), e.GetOutput()) {
-				newCorrect++
+		It("returns a network with a lower cost than the original", func() {
+			var newDesired, newActual, origDesired, origActual [][]float64
+
+			for _, e := range examples {
+				newActual = append(newActual, new.Prop(e.GetInput(), sigmoid))
+				newDesired = append(newDesired, e.GetOutput())
+				origActual = append(origActual, original.Prop(e.GetInput(), sigmoid))
+				origDesired = append(origDesired, e.GetOutput())
 			}
 
-			if matchesDesired(original.Prop(e.GetInput(), sigmoid), e.GetOutput()) {
-				origCorrect++
+			newCost := cost(newDesired, newActual)
+			origCost := cost(origDesired, origActual)
+
+			fmt.Printf("orig: %f, new: %f", origCost, newCost)
+
+			Expect(newCost).To(BeNumerically(`<`, origCost))
+		})
+
+		XIt("returns a network with higher accuracy than original", func() {
+			N := 100
+			testData := generateExamples(N)
+			newCorrect := 0
+			origCorrect := 0
+
+			for _, e := range testData {
+				// fmt.Println(`=== num ===`)
+				if matchesDesired(new.Prop(e.GetInput(), sigmoid), e.GetOutput()) {
+					newCorrect++
+				}
+
+				if matchesDesired(original.Prop(e.GetInput(), sigmoid), e.GetOutput()) {
+					origCorrect++
+				}
 			}
-		}
 
-		Expect(newCorrect / N).To(BeNumerically(`>`, origCorrect/N))
+			Expect(newCorrect / N).To(BeNumerically(`>`, origCorrect/N))
 
+		})
 	})
 })
 
@@ -138,7 +150,7 @@ func sigmoidPrime(z []float64) []float64 {
 		return 1 - x
 	}
 
-	return la.MULT(sigmoid(z), la.Map(sigmoid(z), oneMinus))
+	return la.VMULT(sigmoid(z), la.Map(sigmoid(z), oneMinus))
 }
 
 func cost(desired, actual [][]float64) float64 {
@@ -146,13 +158,13 @@ func cost(desired, actual [][]float64) float64 {
 	intermediate := make([]float64, len(desired))
 
 	for i, _ := range desired {
-		yMinA := la.SUB(desired[i], actual[i])
-		intermediate[i] = la.AddReduce(la.MULT(yMinA, yMinA))
+		yMinA := la.VSUB(desired[i], actual[i])
+		intermediate[i] = la.AddReduce(la.VMULT(yMinA, yMinA))
 	}
 
 	return la.AddReduce(intermediate) / float64(2*len(desired))
 }
 
 func costPrime(actual, desired []float64) []float64 {
-	return la.SUB(actual, desired)
+	return la.VSUB(actual, desired)
 }

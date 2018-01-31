@@ -9,7 +9,7 @@ import (
 type SGD struct {
 	Activation la.Mapper
 	APrime     la.Mapper
-	CostPrime  la.Aggregator
+	CostPrime  la.VectorBOP
 	Eta        float64
 	Net        Network
 }
@@ -34,6 +34,10 @@ func (sgd SGD) Run(trainingData []Example, epochs, miniBatchSize int) Network {
 	return out
 }
 
+func (sgd SGD) MRun(trainingData []Example, epochs, miniBatchSize int) Network {
+	return Network{}
+}
+
 func shuffle(a []Example) []Example {
 	for i := len(a) - 1; i > 0; i-- {
 		j := rand.Intn(i + 1)
@@ -48,7 +52,7 @@ func (sgd SGD) updateMiniBatch(miniBatch []Example, out *Network) {
 	totalB := make([][]float64, len(sgd.Net.Biases))
 
 	for i := range sgd.Net.Weights {
-		totalW[i] = la.ZeroMatrix(sgd.Net.Weights[i].X, sgd.Net.Weights[i].Y)
+		totalW[i] = la.ZeroMatrix(sgd.Net.Weights[i].Shape()[0], sgd.Net.Weights[i].Shape()[1])
 		totalB[i] = make([]float64, len(sgd.Net.Biases[i]))
 	}
 
@@ -57,7 +61,7 @@ func (sgd SGD) updateMiniBatch(miniBatch []Example, out *Network) {
 
 		for i := range nablaW {
 			totalW[i] = la.MSUM(totalW[i], nablaW[i])
-			totalB[i] = la.SUM(totalB[i], nablaB[i])
+			totalB[i] = la.VSUM(totalB[i], nablaB[i])
 		}
 	}
 
@@ -66,10 +70,10 @@ func (sgd SGD) updateMiniBatch(miniBatch []Example, out *Network) {
 	for i := range sgd.Net.Weights {
 		out.Weights[i] =
 			la.MSUM(sgd.Net.Weights[i],
-				la.MMap(totalW[i], la.MultBy(lrOverBatch)))
+				la.MSCALE(totalW[i], lrOverBatch))
 
 		out.Biases[i] =
-			la.SUM(sgd.Net.Biases[i],
-				la.Map(totalB[i], la.MultBy(lrOverBatch)))
+			la.VSUM(sgd.Net.Biases[i],
+				la.VSCALE(totalB[i], lrOverBatch))
 	}
 }

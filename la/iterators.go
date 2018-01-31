@@ -2,10 +2,13 @@ package la
 
 type OP func(a float64) float64
 type BOP func(a, b float64) float64
+type IOP func(a float64, is ...int) float64
 
+type Reducer func([]float64) float64
+type MReducer func([]Matrix) Matrix
 type Mapper func([]float64) []float64
-type Aggregator func(a, b []float64) []float64
-type MatrixAggregator func(a, b Matrix) Matrix
+type VectorBOP func(a, b []float64) []float64
+type MatrixBOP func(a, b Matrix) Matrix
 type MatrixMapper func(Matrix) Matrix
 
 func Map(a []float64, op OP) []float64 {
@@ -18,14 +21,9 @@ func Map(a []float64, op OP) []float64 {
 	return out
 }
 
-func MMap(a Matrix, op OP) Matrix {
-	a.Data = Map(a.Data, op)
-	return a
-}
-
-func MultBy(b float64) OP {
-	return func(a float64) float64 {
-		return a * b
+func MapVectorCol(a []float64, op BOP) IOP {
+	return func(b float64, is ...int) float64 {
+		return op(b, a[is[0]])
 	}
 }
 
@@ -39,6 +37,19 @@ func Agg(a, b []float64, op BOP) []float64 {
 	return out
 }
 
+func MAgg(a, b Matrix, op BOP) Matrix {
+	m := matrix{x: a.Shape()[0], y: b.Shape()[1]}
+	m.data = make([]float64, a.Shape()[0]*a.Shape()[1])
+
+	for i := 0; i < a.Shape()[0]; i++ {
+		for j := 0; j < a.Shape()[1]; j++ {
+			*m.At(i, j) = op(*a.At(i, j), *b.At(i, j))
+		}
+	}
+
+	return m
+}
+
 func Reduce(a []float64, op BOP) float64 {
 	out := a[0]
 
@@ -49,28 +60,91 @@ func Reduce(a []float64, op BOP) float64 {
 	return out
 }
 
-func createAgg(op BOP) Aggregator {
-	return func(a, b []float64) []float64 {
-		out := make([]float64, len(a))
+func MReduce(a []Matrix, op BOP) Matrix {
+	out := a[0]
 
-		for i, _ := range a {
-			out[i] = op(a[i], b[i])
+	for i := 1; i < len(a); i++ {
+		out = MAgg(out, a[i], op)
+	}
+
+	return out
+}
+
+func MMapI(m Matrix, op IOP) Matrix {
+	for i := 0; i < m.Shape()[0]; i++ {
+		for j := 0; j < m.Shape()[1]; j++ {
+			*m.At(i, j) = op(*m.At(i, j), i, j)
 		}
+	}
 
-		return out
+	return m
+}
+
+func MMap(m Matrix, op OP) Matrix {
+	for i := 0; i < m.Shape()[0]; i++ {
+		for j := 0; j < m.Shape()[1]; j++ {
+			*m.At(i, j) = op(*m.At(i, j))
+		}
+	}
+
+	return m
+}
+
+func MVDot(a Matrix, b []float64) []float64 {
+	var d []float64
+
+	for i := 0; i < a.Shape()[0]; i++ {
+		d = append(d, Dot(a.Row(i), b))
+	}
+
+	return d
+}
+
+func MMDot(a, b Matrix) Matrix {
+	out := ZeroMatrix(a.Shape()[0], b.Shape()[1])
+
+	for i := 0; i < a.Shape()[0]; i++ {
+		for j := 0; j < b.Shape()[1]; j++ {
+			*out.At(i, j) = Dot(a.Row(i), b.Col(j))
+		}
+	}
+
+	return out
+}
+
+func CreateMReducer(op BOP) MReducer {
+	return func(a []Matrix) Matrix {
+		return MReduce(a, op)
 	}
 }
 
-func CreateMatrixAgg(op BOP) MatrixAggregator {
+func CreateVectorOP(op BOP) VectorBOP {
+	return func(a, b []float64) []float64 {
+		return Agg(a, b, op)
+	}
+}
+
+func CreateVMapper(op OP) Mapper {
+	return func(a []float64) []float64 {
+		return Map(a, op)
+	}
+}
+
+func CreateMatrixOP(op BOP) MatrixBOP {
 	return func(a, b Matrix) Matrix {
-		a.Data = Agg(a.Data, b.Data, op)
-		return a
+		return MAgg(a, b, op)
 	}
 }
 
-func createReduce(op BOP) func([]float64) float64 {
+func CreateReducer(op BOP) Reducer {
 	return func(a []float64) float64 {
 		return Reduce(a, op)
+	}
+}
+
+func CreateMMapper(op OP) MatrixMapper {
+	return func(m Matrix) Matrix {
+		return MMap(m, op)
 	}
 }
 
@@ -80,24 +154,41 @@ func Add(x float64) OP {
 	}
 }
 
-func sum(a, b float64) float64 {
+func MultBy(b float64) OP {
+	return func(a float64) float64 {
+		return a * b
+	}
+}
+
+func SUM(a, b float64) float64 {
 	return a + b
 }
 
-func sub(a, b float64) float64 {
+func SUB(a, b float64) float64 {
 	return a - b
 }
 
-func mult(a, b float64) float64 {
+func MULT(a, b float64) float64 {
 	return a * b
 }
 
+func VSCALE(a []float64, x float64) []float64 {
+	scale := CreateVMapper(MultBy(x))
+	return scale(a)
+}
+
+func MSCALE(a Matrix, x float64) Matrix {
+	scale := CreateMMapper(MultBy(x))
+	return scale(a)
+}
+
 // vector operations
-var SUM = createAgg(sum)
-var SUB = createAgg(sub)
-var MULT = createAgg(mult)
-var AddReduce = createReduce(sum)
+var VSUM = CreateVectorOP(SUM)
+var VSUB = CreateVectorOP(SUB)
+var VMULT = CreateVectorOP(MULT)
+var AddReduce = CreateReducer(SUM)
 
 // matrix operations
-var MSUM = CreateMatrixAgg(sum)
-var MMULT = CreateMatrixAgg(mult)
+var MSUM = CreateMatrixOP(SUM)
+var MMULT = CreateMatrixOP(MULT)
+var MAddReduce = CreateMReducer(SUM)

@@ -39,7 +39,7 @@ var _ = Describe("Network", func() {
 					Expect(len(net.Biases)).To(Equal(len(layers) - 1))
 
 					for i := 1; i < len(layers); i++ {
-						Expect([]int{net.Weights[i-1].X, net.Weights[i-1].Y}).To(Equal([]int{layers[i], layers[i-1]}))
+						Expect([]int{net.Weights[i-1].Shape()[0], net.Weights[i-1].Shape()[1]}).To(Equal([]int{layers[i], layers[i-1]}))
 						Expect(len(net.Biases[i-1])).To(Equal(layers[i]))
 					}
 				}
@@ -93,8 +93,8 @@ var _ = Describe("Network", func() {
 				Expect(len(nb)).To(Equal(len(net.Biases)))
 
 				for i, _ := range net.Weights {
-					Expect(net.Weights[i].X).To(Equal(nw[i].X))
-					Expect(net.Weights[i].Y).To(Equal(nw[i].Y))
+					Expect(net.Weights[i].Shape()[0]).To(Equal(nw[i].Shape()[0]))
+					Expect(net.Weights[i].Shape()[1]).To(Equal(nw[i].Shape()[1]))
 					Expect(len(net.Biases[i])).To(Equal(len(nb[i])))
 				}
 			})
@@ -118,7 +118,15 @@ var _ = Describe("Network", func() {
 		})
 
 		It("returns the gradients as matricies across all inputs", func() {
-			net.MBackProp(inputs, desired, a, aP, cP)
+			nw, nb := net.MBackProp(inputs, desired, a, aP, cP)
+
+			for i, w := range nw {
+				Expect(w.Shape()).To(Equal(net.Weights[i].Shape()))
+			}
+
+			for i, b := range nb {
+				Expect(len(b)).To(Equal(len(net.Biases[i])))
+			}
 		})
 	})
 })
@@ -157,5 +165,5 @@ func act(z []float64) []float64 {
 }
 
 func cPrime(a, b []float64) []float64 {
-	return la.SUB(a, b)
+	return la.VSUB(a, b)
 }

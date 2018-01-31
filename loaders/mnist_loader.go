@@ -3,7 +3,6 @@ package loaders
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io/ioutil"
 
 	"github.com/hayden-erickson/neural-network/nn"
@@ -41,7 +40,6 @@ type mNISTLoader struct {
 }
 
 func NewMNISTLoader(imgs, labels string, imgMagicNum, lblMagicNum uint32) Loader {
-	fmt.Println(`new loader`)
 	return mNISTLoader{
 		imageFile:     imgs,
 		labelFile:     labels,
@@ -91,16 +89,12 @@ func (ml mNISTLoader) Load() ([]nn.Example, error) {
 	labeldata = labeldata[8:]
 	out := make([]nn.Example, numImgs)
 
-	fmt.Println(`building examples...`)
-
 	for i := 0; i < int(numImgs); i++ {
 		out[i] = mNISTExample{
 			image:  imgdata[(i * imgSize):((i + 1) * imgSize)],
 			number: labeldata[i],
 		}
 	}
-
-	fmt.Println(`done building examples`)
 
 	return out, nil
 }

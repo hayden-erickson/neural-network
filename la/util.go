@@ -34,18 +34,18 @@ func RandMatrix(n, m int) Matrix {
 		d = append(d, RandVector(m)...)
 	}
 
-	return Matrix{
-		X:    n,
-		Y:    m,
-		Data: d,
+	return matrix{
+		x:    n,
+		y:    m,
+		data: d,
 	}
 }
 
 func ZeroMatrix(n, m int) Matrix {
-	return Matrix{
-		X:    n,
-		Y:    m,
-		Data: make([]float64, n*m),
+	return matrix{
+		x:    n,
+		y:    m,
+		data: make([]float64, n*m),
 	}
 }
 
@@ -61,15 +61,15 @@ func NewMatrix(data [][]float64) Matrix {
 		}
 	}
 
-	return Matrix{
-		X:    n,
-		Y:    m,
-		Data: d,
+	return matrix{
+		x:    n,
+		y:    m,
+		data: d,
 	}
 }
 
 func Dot(a, b []float64) float64 {
-	return AddReduce(MULT(a, b))
+	return AddReduce(VMULT(a, b))
 }
 
 func Outer(a, b []float64) Matrix {
@@ -79,9 +79,9 @@ func Outer(a, b []float64) Matrix {
 		d = append(d, Map(b, MultBy(a[i]))...)
 	}
 
-	return Matrix{
-		X:    len(a),
-		Y:    len(b),
-		Data: d,
+	return matrix{
+		x:    len(a),
+		y:    len(b),
+		data: d,
 	}
 }

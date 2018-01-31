@@ -2,7 +2,6 @@ package nn
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/hayden-erickson/neural-network/la"
 )
@@ -18,7 +17,7 @@ type Network struct {
 }
 
 func getZ(a, b []float64, w la.Matrix) []float64 {
-	return la.SUM(la.MVDot(w, a), b)
+	return la.VSUM(la.MVDot(w, a), b)
 }
 
 func (n Network) Prop(input []float64, activation la.Mapper) []float64 {
@@ -37,7 +36,7 @@ func (n Network) BackProp(
 	e Example,
 	a la.Mapper,
 	aPrime la.Mapper,
-	cPrime la.Aggregator,
+	cPrime la.VectorBOP,
 ) ([]la.Matrix, [][]float64) {
 	nablaB := make([][]float64, len(n.Biases))
 	nablaW := make([]la.Matrix, len(n.Weights))
@@ -54,7 +53,7 @@ func (n Network) BackProp(
 	actual := activations[len(activations)-1]
 	desired := e.GetOutput()
 
-	delta := la.MULT(cPrime(actual, desired), aPrime(zs[len(zs)-1]))
+	delta := la.VMULT(cPrime(actual, desired), aPrime(zs[len(zs)-1]))
 
 	nablaB[len(nablaB)-1] = delta
 	nablaW[len(nablaW)-1] = la.Outer(delta, activations[len(activations)-2])
@@ -65,7 +64,7 @@ func (n Network) BackProp(
 		ap := aPrime(zs[len(zs)-l])
 		w := n.Weights[(len(n.Weights)-l)+1]
 
-		delta = la.MULT(la.MVDot(w.T(), delta), ap)
+		delta = la.VMULT(la.MVDot(w.T(), delta), ap)
 
 		nablaB[len(nablaB)-l] = delta
 		nablaW[len(nablaW)-l] = la.Outer(delta, activations[(numLayers-l)-1])
@@ -80,22 +79,18 @@ func (n Network) MBackProp(
 	a la.OP,
 	aPrime la.OP,
 	cPrime la.BOP,
-) (nablaW []la.Matrix, nablaB []la.Matrix) {
+) (nablaW []la.Matrix, nablaB [][]float64) {
 
-	nablaB = make([]la.Matrix, len(n.Biases))
+	nablaB = make([][]float64, len(n.Biases))
 	nablaW = make([]la.Matrix, len(n.Weights))
 
 	activations := []la.Matrix{input}
 	var zs []la.Matrix
 
 	for i := 0; i < len(n.Weights); i++ {
-		// z := getZ(activations[i], n.Biases[i], n.Weights[i])
-		zi := la.MMDot(n.Weights[i], activations[i])
-		z := la.Matrix{X: len(n.Biases[i]), Y: activations[i].Y}
-
-		for i, b := range n.Biases[i] {
-			z.Data = append(z.Data, la.Map(zi.Row(i), la.Add(b))...)
-		}
+		z := la.MMapI(
+			la.MMDot(n.Weights[i], activations[i]),
+			la.MapVectorCol(n.Biases[i], la.SUM))
 
 		zs = append(zs, z)
 		activations = append(activations, la.MMap(z, a))
@@ -104,36 +99,46 @@ func (n Network) MBackProp(
 	actual := activations[len(activations)-1]
 
 	// delta := la.MULT(cPrime(actual, desired), aPrime(zs[len(zs)-1]))
-	mCPrime := la.CreateMatrixAgg(cPrime)
+	mCPrime := la.CreateMatrixOP(cPrime)
 	delta := la.MMULT(mCPrime(actual, desired), la.MMap(zs[len(zs)-1], aPrime))
 
-	fmt.Println(delta.X, delta.Y)
+	nablaB[len(nablaB)-1] = rowReduceAvg(delta)
+	nablaW[len(nablaW)-1] = mOuterColReduceAvg(delta, activations[len(activations)-2])
 
-	// deltaV := make([]float64, delta.X)
+	numLayers := len(n.Weights) + 1
 
-	// for i := 0; i < delta.X; i++ {
-	// 	deltaV[i] = la.AddReduce(delta.Row(i))
-	// }
+	for l := 2; l < numLayers; l++ {
+		ap := la.MMap(zs[len(zs)-l], aPrime)
+		w := n.Weights[(len(n.Weights)-l)+1]
 
-	// // TODO: take avg over all input examples
-	// deltaV = la.Map(deltaV, la.MultBy(1/float64(len(deltaV))))
+		delta = la.MMULT(la.MMDot(w.T(), delta), ap)
 
-	// nablaB[len(nablaB)-1] = delta
-	// nablaW[len(nablaW)-1] = la.Outer(delta, activations[len(activations)-2])
-
-	// numLayers := len(n.Weights) + 1
-
-	// for l := 2; l < numLayers; l++ {
-	// 	ap := aPrime(zs[len(zs)-l])
-	// 	w := n.Weights[(len(n.Weights)-l)+1]
-
-	// 	delta = la.MULT(la.MVDot(w.T(), delta), ap)
-
-	// 	nablaB[len(nablaB)-l] = delta
-	// 	nablaW[len(nablaW)-l] = la.Outer(delta, activations[(numLayers-l)-1])
-	// }
+		nablaB[len(nablaB)-l] = rowReduceAvg(delta)
+		nablaW[len(nablaW)-l] = mOuterColReduceAvg(delta, activations[(numLayers-l)-1])
+	}
 
 	return nablaW, nablaB
+}
+
+func mOuterColReduceAvg(a, b la.Matrix) la.Matrix {
+	out := make([]la.Matrix, a.Shape()[1])
+
+	for j := 0; j < a.Shape()[1]; j++ {
+		out[j] = la.Outer(a.Col(j), b.Col(j))
+	}
+
+	return la.MSCALE(la.MAddReduce(out), (1 / float64(a.Shape()[1])))
+
+}
+
+func rowReduceAvg(a la.Matrix) []float64 {
+	out := make([]float64, a.Shape()[0])
+
+	for i := 0; i < a.Shape()[0]; i++ {
+		out[i] = la.AddReduce(a.Row(i))
+	}
+
+	return la.VSCALE(out, (1 / float64(a.Shape()[1])))
 }
 
 func NewNetwork(layers []int) (Network, error) {
@@ -160,10 +165,10 @@ func CopyNetwork(into, from *Network) {
 	into.Biases = make([][]float64, len(from.Biases))
 
 	for i, _ := range from.Weights {
-		into.Weights[i] = la.ZeroMatrix(from.Weights[i].X, from.Weights[i].Y)
+		into.Weights[i] = la.ZeroMatrix(from.Weights[i].Shape()[0], from.Weights[i].Shape()[1])
 		into.Biases[i] = make([]float64, len(from.Biases[i]))
 
-		la.CopyMatrix(into.Weights[i], from.Weights[i])
+		into.Weights[i] = from.Weights[i]
 		copy(into.Biases[i], from.Biases[i])
 	}
 }

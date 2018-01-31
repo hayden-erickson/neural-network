@@ -100,12 +100,17 @@ var _ = Describe("Matrix", func() {
 
 			c := MMDot(a, b)
 
-			Expect(c.X).To(Equal(a.X))
-			Expect(c.Y).To(Equal(b.Y))
+			Expect(c.Shape()[0]).To(Equal(a.Shape()[0]))
+			Expect(c.Shape()[1]).To(Equal(b.Shape()[1]))
 
-			Expect(c.Data).To(Equal(
-				[]float64{38, 44, 50, 56, 83, 98, 113, 128},
-			))
+			data := [][]float64{
+				{38, 44, 50, 56},
+				{83, 98, 113, 128},
+			}
+
+			for i := 0; i < c.Shape()[0]; i++ {
+				Expect(c.Row(i)).To(Equal(data[i]))
+			}
 		})
 	})
 })
