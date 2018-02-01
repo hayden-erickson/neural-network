@@ -160,10 +160,10 @@ func cP(a, b float64) float64 {
 	return a - b
 }
 
-func act(z []float64) []float64 {
+func act(z float64) float64 {
 	return z
 }
 
-func cPrime(a, b []float64) []float64 {
-	return la.VSUB(a, b)
+func cPrime(a, b float64) float64 {
+	return a - b
 }

@@ -20,13 +20,14 @@ func getZ(a, b []float64, w la.Matrix) []float64 {
 	return la.VSUM(la.MVDot(w, a), b)
 }
 
-func (n Network) Prop(input []float64, activation la.Mapper) []float64 {
+func (n Network) Prop(input []float64, activation la.OP) []float64 {
+	a := la.CreateVMapper(activation)
 	activations := input
 
 	// sigmoid(wa + b)
 	for i := 0; i < len(n.Weights); i++ {
 		activations =
-			activation(getZ(activations, n.Biases[i], n.Weights[i]))
+			a(getZ(activations, n.Biases[i], n.Weights[i]))
 	}
 
 	return activations
@@ -34,12 +35,15 @@ func (n Network) Prop(input []float64, activation la.Mapper) []float64 {
 
 func (n Network) BackProp(
 	e Example,
-	a la.Mapper,
-	aPrime la.Mapper,
-	cPrime la.VectorBOP,
+	activation la.OP,
+	activationPrime la.OP,
+	costPrime la.BOP,
 ) ([]la.Matrix, [][]float64) {
 	nablaB := make([][]float64, len(n.Biases))
 	nablaW := make([]la.Matrix, len(n.Weights))
+	a := la.CreateVMapper(activation)
+	aPrime := la.CreateVMapper(activationPrime)
+	cPrime := la.CreateVectorOP(costPrime)
 
 	activations := [][]float64{e.GetInput()}
 	var zs [][]float64

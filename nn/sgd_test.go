@@ -1,7 +1,6 @@
 package nn_test
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
 	"time"
@@ -68,8 +67,13 @@ var _ = Describe("Sgd", func() {
 	})
 
 	Describe("#MRun", func() {
-		It("operates on matricies instead of individual examples", func() {
-			sgd.MRun(examples, 50, 100)
+		BeforeEach(func() {
+			new = sgd.MRun(examples, 50, 100)
+		})
+
+		It("returns a network with lower cost than the original", func() {
+			newCost, origCost := evaluateNets(examples, sigmoid, new, original)
+			Expect(newCost).To(BeNumerically(`<`, origCost))
 		})
 	})
 
@@ -79,20 +83,7 @@ var _ = Describe("Sgd", func() {
 		})
 
 		It("returns a network with a lower cost than the original", func() {
-			var newDesired, newActual, origDesired, origActual [][]float64
-
-			for _, e := range examples {
-				newActual = append(newActual, new.Prop(e.GetInput(), sigmoid))
-				newDesired = append(newDesired, e.GetOutput())
-				origActual = append(origActual, original.Prop(e.GetInput(), sigmoid))
-				origDesired = append(origDesired, e.GetOutput())
-			}
-
-			newCost := cost(newDesired, newActual)
-			origCost := cost(origDesired, origActual)
-
-			fmt.Printf("orig: %f, new: %f", origCost, newCost)
-
+			newCost, origCost := evaluateNets(examples, sigmoid, new, original)
 			Expect(newCost).To(BeNumerically(`<`, origCost))
 		})
 
@@ -119,6 +110,19 @@ var _ = Describe("Sgd", func() {
 	})
 })
 
+func evaluateNets(exs []Example, activation la.OP, a, b Network) (aCost, bCost float64) {
+	var aDesired, aActual, bDesired, bActual [][]float64
+
+	for _, e := range exs {
+		aDesired = append(aDesired, e.GetOutput())
+		aActual = append(aActual, a.Prop(e.GetInput(), activation))
+		bDesired = append(bDesired, e.GetOutput())
+		bActual = append(bActual, b.Prop(e.GetInput(), activation))
+	}
+
+	return cost(aDesired, aActual), cost(bDesired, bActual)
+}
+
 func matchesDesired(actual, desired []float64) bool {
 	matches := true
 
@@ -137,20 +141,12 @@ func matchesDesired(actual, desired []float64) bool {
 	return matches
 }
 
-func sigmoid(z []float64) []float64 {
-	act := func(z float64) float64 {
-		return 1 / (1 + math.Exp(-z))
-	}
-
-	return la.Map(z, act)
+func sigmoid(z float64) float64 {
+	return 1 / (1 + math.Exp(-z))
 }
 
-func sigmoidPrime(z []float64) []float64 {
-	oneMinus := func(x float64) float64 {
-		return 1 - x
-	}
-
-	return la.VMULT(sigmoid(z), la.Map(sigmoid(z), oneMinus))
+func sigmoidPrime(z float64) float64 {
+	return sigmoid(z) * (1 - sigmoid(z))
 }
 
 func cost(desired, actual [][]float64) float64 {
@@ -165,6 +161,6 @@ func cost(desired, actual [][]float64) float64 {
 	return la.AddReduce(intermediate) / float64(2*len(desired))
 }
 
-func costPrime(actual, desired []float64) []float64 {
-	return la.VSUB(actual, desired)
+func costPrime(actual, desired float64) float64 {
+	return actual - desired
 }

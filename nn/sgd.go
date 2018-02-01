@@ -7,9 +7,9 @@ import (
 )
 
 type SGD struct {
-	Activation la.Mapper
-	APrime     la.Mapper
-	CostPrime  la.VectorBOP
+	Activation la.OP
+	APrime     la.OP
+	CostPrime  la.BOP
 	Eta        float64
 	Net        Network
 }
@@ -35,7 +35,46 @@ func (sgd SGD) Run(trainingData []Example, epochs, miniBatchSize int) Network {
 }
 
 func (sgd SGD) MRun(trainingData []Example, epochs, miniBatchSize int) Network {
-	return Network{}
+	var out Network
+	CopyNetwork(&out, &sgd.Net)
+
+	for i := 0; i < epochs; i++ {
+		shuffled := shuffle(trainingData)
+
+		for j := 0; j < len(trainingData)/miniBatchSize; j++ {
+			inputs, desired := miniBatchToMatricies(shuffled[(j * miniBatchSize):((j + 1) * miniBatchSize)])
+			deltaW, deltaB := sgd.Net.MBackProp(inputs, desired, sgd.Activation, sgd.APrime, sgd.CostPrime)
+			for k, _ := range deltaW {
+				out.Weights[k] = la.MSUM(sgd.Net.Weights[k], la.MSCALE(deltaW[k], -sgd.Eta))
+				out.Biases[k] = la.VSUM(sgd.Net.Biases[k], la.VSCALE(deltaB[k], -sgd.Eta))
+			}
+		}
+	}
+
+	return out
+}
+
+func miniBatchToMatricies(exs []Example) (input, desired la.Matrix) {
+	N := len(exs)
+	inputSize := len(exs[0].GetInput())
+	outputSize := len(exs[0].GetOutput())
+	input = la.ZeroMatrix(inputSize, N)
+	desired = la.ZeroMatrix(outputSize, N)
+
+	for j := 0; j < N; j++ {
+		inputV := exs[j].GetInput()
+		outputV := exs[j].GetOutput()
+
+		for i := 0; i < inputSize; i++ {
+			*input.At(i, j) = inputV[i]
+		}
+
+		for i := 0; i < outputSize; i++ {
+			*desired.At(i, j) = outputV[i]
+		}
+	}
+
+	return input, desired
 }
 
 func shuffle(a []Example) []Example {
