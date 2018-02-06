@@ -61,7 +61,8 @@ var _ = Describe("Network", func() {
 		})
 
 		JustBeforeEach(func() {
-			output = net.Prop(input, act)
+			sig := Sigmoid
+			output = net.Prop(input, sig)
 		})
 
 		It("returns the network output", func() {
@@ -87,7 +88,7 @@ var _ = Describe("Network", func() {
 			})
 
 			It("returns the gradients", func() {
-				nw, nb := net.BackProp(randEx(inputSize, outputSize), act, act, cPrime)
+				nw, nb := net.BackProp(randEx(inputSize, outputSize), Sigmoid, Quadratic)
 
 				Expect(len(nw)).To(Equal(len(net.Weights)))
 				Expect(len(nb)).To(Equal(len(net.Biases)))
@@ -118,7 +119,7 @@ var _ = Describe("Network", func() {
 		})
 
 		It("returns the gradients as matricies across all inputs", func() {
-			nw, nb := net.MBackProp(inputs, desired, a, aP, cP)
+			nw, nb := net.MBackProp(inputs, desired, Sigmoid, Quadratic)
 
 			for i, w := range nw {
 				Expect(w.Shape()).To(Equal(net.Weights[i].Shape()))
@@ -146,24 +147,4 @@ func (t testX) GetOutput() []float64 {
 
 func randEx(in, out int) Example {
 	return testX{in, out}
-}
-
-func a(z float64) float64 {
-	return z
-}
-
-func aP(z float64) float64 {
-	return 1
-}
-
-func cP(a, b float64) float64 {
-	return a - b
-}
-
-func act(z float64) float64 {
-	return z
-}
-
-func cPrime(a, b float64) float64 {
-	return a - b
 }

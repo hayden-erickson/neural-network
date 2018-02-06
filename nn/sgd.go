@@ -7,51 +7,40 @@ import (
 )
 
 type SGD struct {
-	Activation la.OP
-	APrime     la.OP
-	CostPrime  la.BOP
+	Activation Differentiable
+	Cost       Differentiable
 	Eta        float64
 	Net        Network
 }
 
-func (sgd SGD) Run(trainingData []Example, epochs, miniBatchSize int) Network {
+func (sgd SGD) MRun(trainingData []Example, epochs, miniBatchSize int) {
+	shuffled := shuffle(trainingData)
+	for i := 0; i < epochs; i++ {
+
+		for j := 0; j < len(trainingData)/miniBatchSize; j++ {
+			inputs, desired := miniBatchToMatricies(shuffled[(j * miniBatchSize):((j + 1) * miniBatchSize)])
+			deltaW, deltaB := sgd.Net.MBackProp(inputs, desired, sgd.Activation, sgd.Cost)
+			for k, _ := range deltaW {
+				sgd.Net.Weights[k] = la.MSUM(sgd.Net.Weights[k], la.MSCALE(deltaW[k], -sgd.Eta))
+				sgd.Net.Biases[k] = la.VSUM(sgd.Net.Biases[k], la.VSCALE(deltaB[k], -sgd.Eta))
+			}
+		}
+	}
+}
+
+func (sgd SGD) Run(trainingData []Example, epochs, miniBatchSize int) {
 
 	N := len(trainingData)
 	M := miniBatchSize
 
-	var out Network
-	CopyNetwork(&out, &sgd.Net)
-
+	shuffled := shuffle(trainingData)
 	for e := 0; e < epochs; e++ {
-		shuffled := shuffle(trainingData)
 
 		// N must be a multiple of miniBatchSize
 		for i := 0; i < (N / M); i++ {
-			sgd.updateMiniBatch(shuffled[(i*M):((i+1)*M)], &out)
+			sgd.updateMiniBatch(shuffled[(i * M):((i + 1) * M)])
 		}
 	}
-
-	return out
-}
-
-func (sgd SGD) MRun(trainingData []Example, epochs, miniBatchSize int) Network {
-	var out Network
-	CopyNetwork(&out, &sgd.Net)
-
-	for i := 0; i < epochs; i++ {
-		shuffled := shuffle(trainingData)
-
-		for j := 0; j < len(trainingData)/miniBatchSize; j++ {
-			inputs, desired := miniBatchToMatricies(shuffled[(j * miniBatchSize):((j + 1) * miniBatchSize)])
-			deltaW, deltaB := sgd.Net.MBackProp(inputs, desired, sgd.Activation, sgd.APrime, sgd.CostPrime)
-			for k, _ := range deltaW {
-				out.Weights[k] = la.MSUM(sgd.Net.Weights[k], la.MSCALE(deltaW[k], -sgd.Eta))
-				out.Biases[k] = la.VSUM(sgd.Net.Biases[k], la.VSCALE(deltaB[k], -sgd.Eta))
-			}
-		}
-	}
-
-	return out
 }
 
 func miniBatchToMatricies(exs []Example) (input, desired la.Matrix) {
@@ -86,7 +75,7 @@ func shuffle(a []Example) []Example {
 	return a
 }
 
-func (sgd SGD) updateMiniBatch(miniBatch []Example, out *Network) {
+func (sgd SGD) updateMiniBatch(miniBatch []Example) {
 	totalW := make([]la.Matrix, len(sgd.Net.Weights))
 	totalB := make([][]float64, len(sgd.Net.Biases))
 
@@ -96,7 +85,7 @@ func (sgd SGD) updateMiniBatch(miniBatch []Example, out *Network) {
 	}
 
 	for _, e := range miniBatch {
-		nablaW, nablaB := sgd.Net.BackProp(e, sgd.Activation, sgd.APrime, sgd.CostPrime)
+		nablaW, nablaB := sgd.Net.BackProp(e, sgd.Activation, sgd.Cost)
 
 		for i := range nablaW {
 			totalW[i] = la.MSUM(totalW[i], nablaW[i])
@@ -107,11 +96,11 @@ func (sgd SGD) updateMiniBatch(miniBatch []Example, out *Network) {
 	lrOverBatch := -(sgd.Eta / float64(len(miniBatch)))
 
 	for i := range sgd.Net.Weights {
-		out.Weights[i] =
+		sgd.Net.Weights[i] =
 			la.MSUM(sgd.Net.Weights[i],
 				la.MSCALE(totalW[i], lrOverBatch))
 
-		out.Biases[i] =
+		sgd.Net.Biases[i] =
 			la.VSUM(sgd.Net.Biases[i],
 				la.VSCALE(totalB[i], lrOverBatch))
 	}

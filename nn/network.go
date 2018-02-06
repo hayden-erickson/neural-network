@@ -20,8 +20,8 @@ func getZ(a, b []float64, w la.Matrix) []float64 {
 	return la.VSUM(la.MVDot(w, a), b)
 }
 
-func (n Network) Prop(input []float64, activation la.OP) []float64 {
-	a := la.CreateVMapper(activation)
+func (n Network) Prop(input []float64, activation Differentiable) []float64 {
+	a := la.CreateVMapper(ToOP(activation.Fn))
 	activations := input
 
 	// sigmoid(wa + b)
@@ -35,15 +35,14 @@ func (n Network) Prop(input []float64, activation la.OP) []float64 {
 
 func (n Network) BackProp(
 	e Example,
-	activation la.OP,
-	activationPrime la.OP,
-	costPrime la.BOP,
+	activation Differentiable,
+	cost Differentiable,
 ) ([]la.Matrix, [][]float64) {
 	nablaB := make([][]float64, len(n.Biases))
 	nablaW := make([]la.Matrix, len(n.Weights))
-	a := la.CreateVMapper(activation)
-	aPrime := la.CreateVMapper(activationPrime)
-	cPrime := la.CreateVectorOP(costPrime)
+	a := la.CreateVMapper(ToOP(activation.Fn))
+	aPrime := la.CreateVMapper(ToOP(activation.Prime))
+	cPrime := la.CreateVectorOP(ToBOP(cost.Prime))
 
 	activations := [][]float64{e.GetInput()}
 	var zs [][]float64
@@ -80,9 +79,8 @@ func (n Network) BackProp(
 func (n Network) MBackProp(
 	input la.Matrix,
 	desired la.Matrix,
-	a la.OP,
-	aPrime la.OP,
-	cPrime la.BOP,
+	a Differentiable,
+	c Differentiable,
 ) (nablaW []la.Matrix, nablaB [][]float64) {
 
 	nablaB = make([][]float64, len(n.Biases))
@@ -97,14 +95,14 @@ func (n Network) MBackProp(
 			la.MapVectorCol(n.Biases[i], la.SUM))
 
 		zs = append(zs, z)
-		activations = append(activations, la.MMap(z, a))
+		activations = append(activations, la.MMap(z, ToOP(a.Fn)))
 	}
 
 	actual := activations[len(activations)-1]
 
 	// delta := la.MULT(cPrime(actual, desired), aPrime(zs[len(zs)-1]))
-	mCPrime := la.CreateMatrixOP(cPrime)
-	delta := la.MMULT(mCPrime(actual, desired), la.MMap(zs[len(zs)-1], aPrime))
+	mCPrime := la.CreateMatrixOP(ToBOP(c.Prime))
+	delta := la.MMULT(mCPrime(actual, desired), la.MMap(zs[len(zs)-1], ToOP(a.Prime)))
 
 	nablaB[len(nablaB)-1] = rowReduceAvg(delta)
 	nablaW[len(nablaW)-1] = mOuterColReduceAvg(delta, activations[len(activations)-2])
@@ -112,7 +110,7 @@ func (n Network) MBackProp(
 	numLayers := len(n.Weights) + 1
 
 	for l := 2; l < numLayers; l++ {
-		ap := la.MMap(zs[len(zs)-l], aPrime)
+		ap := la.MMap(zs[len(zs)-l], ToOP(a.Prime))
 		w := n.Weights[(len(n.Weights)-l)+1]
 
 		delta = la.MMULT(la.MMDot(w.T(), delta), ap)

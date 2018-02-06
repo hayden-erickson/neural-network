@@ -2,10 +2,8 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"time"
 
-	"github.com/hayden-erickson/neural-network/la"
 	"github.com/hayden-erickson/neural-network/loaders"
 	"github.com/hayden-erickson/neural-network/nn"
 )
@@ -18,9 +16,8 @@ func main() {
 	}
 
 	sgd := nn.SGD{
-		Activation: sigmoid,
-		APrime:     sigmoidPrime,
-		CostPrime:  costPrime,
+		Activation: nn.Sigmoid,
+		Cost:       nn.Quadratic,
 		Eta:        3,
 		Net:        net,
 	}
@@ -37,9 +34,6 @@ func main() {
 		panic(e)
 	}
 
-	epochs := 30
-	var new nn.Network
-
 	l = loaders.NewMNISTLoader(
 		`./data/t10k-images-idx3-ubyte`,
 		`./data/t10k-labels-idx1-ubyte`,
@@ -54,24 +48,25 @@ func main() {
 
 	fmt.Printf("Running SGD... %s\n", time.Now().Truncate(time.Second))
 
-	for i := 0; i < epochs; i++ {
-		new = sgd.Run(trainingData, 1, 10)
-		sgd.Net = new
+	fmt.Printf("accuracy: %d/%d\n", Evaluate(sgd.Net, testData), len(testData))
 
-		if i%2 == 0 {
-			fmt.Printf("accuracy: %d/%d\n", evaluate(new, testData), len(testData))
-		}
-	}
+	sgd.Run(trainingData[0:100], 5, 10)
+
+	fmt.Printf("accuracy: %d/%d\n", Evaluate(sgd.Net, testData), len(testData))
+
+	sgd.MRun(trainingData[0:100], 5, 10)
+
+	fmt.Printf("M accuracy: %d/%d\n", Evaluate(sgd.Net, testData), len(testData))
 
 	fmt.Printf("Done running SGD %s\n", time.Now().Truncate(time.Second))
 
 }
 
-func evaluate(n nn.Network, testData []nn.Example) int {
+func Evaluate(n nn.Network, testData []nn.Example) int {
 	var correct int
 
 	for _, e := range testData {
-		if match(n.Prop(e.GetInput(), sigmoid), e.GetOutput()) {
+		if match(n.Prop(e.GetInput(), nn.Sigmoid{}), e.GetOutput()) {
 			correct++
 		}
 	}
@@ -106,35 +101,3 @@ func match(a, b []float64) bool {
 // func SigmoidPrime(z float64) float64 {
 // 	return Sigmoid(z) * (1 - Sigmoid(z))
 // }
-
-func sigmoid(z []float64) []float64 {
-	act := func(z float64) float64 {
-		return 1 / (1 + math.Exp(-z))
-	}
-
-	return la.Map(z, act)
-}
-
-func sigmoidPrime(z []float64) []float64 {
-	oneMinus := func(x float64) float64 {
-		return 1 - x
-	}
-
-	return la.MULT(sigmoid(z), la.Map(sigmoid(z), oneMinus))
-}
-
-func cost(desired, actual [][]float64) float64 {
-
-	intermediate := make([]float64, len(desired))
-
-	for i, _ := range desired {
-		yMinA := la.SUB(desired[i], actual[i])
-		intermediate[i] = la.AddReduce(la.MULT(yMinA, yMinA))
-	}
-
-	return la.AddReduce(intermediate) / float64(2*len(desired))
-}
-
-func costPrime(actual, desired []float64) []float64 {
-	return la.SUB(actual, desired)
-}
