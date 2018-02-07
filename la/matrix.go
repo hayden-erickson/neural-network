@@ -6,6 +6,7 @@ type Matrix interface {
 	Col(int) []float64
 	At(i, j int) *float64
 	Shape() []int
+	Data() []float64
 }
 
 type matrix struct {
@@ -38,6 +39,10 @@ func (t transposer) Shape() []int {
 	return []int{t.m.y, t.m.x}
 }
 
+func (t transposer) Data() []float64 {
+	return t.m.Data()
+}
+
 func (m matrix) T() Matrix {
 	return transposer{m: m}
 }
@@ -62,6 +67,10 @@ func (m matrix) At(i, j int) *float64 {
 
 func (m matrix) Shape() []int {
 	return []int{m.x, m.y}
+}
+
+func (m matrix) Data() []float64 {
+	return m.data
 }
 
 // func CreateMatrixAgg

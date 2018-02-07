@@ -90,19 +90,19 @@ func (n Network) MBackProp(
 	var zs []la.Matrix
 
 	for i := 0; i < len(n.Weights); i++ {
-		z := la.MMapI(
+		z := la.MMapID(
 			la.MMDot(n.Weights[i], activations[i]),
 			la.MapVectorCol(n.Biases[i], la.SUM))
 
 		zs = append(zs, z)
-		activations = append(activations, la.MMap(z, ToOP(a.Fn)))
+		activations = append(activations, la.MMapD(z, ToOP(a.Fn)))
 	}
 
 	actual := activations[len(activations)-1]
 
 	// delta := la.MULT(cPrime(actual, desired), aPrime(zs[len(zs)-1]))
 	mCPrime := la.CreateMatrixOP(ToBOP(c.Prime))
-	delta := la.MMULT(mCPrime(actual, desired), la.MMap(zs[len(zs)-1], ToOP(a.Prime)))
+	delta := la.MMULT(mCPrime(actual, desired), la.MMapD(zs[len(zs)-1], ToOP(a.Prime)))
 
 	nablaB[len(nablaB)-1] = rowReduceAvg(delta)
 	nablaW[len(nablaW)-1] = mOuterColReduceAvg(delta, activations[len(activations)-2])
@@ -110,7 +110,7 @@ func (n Network) MBackProp(
 	numLayers := len(n.Weights) + 1
 
 	for l := 2; l < numLayers; l++ {
-		ap := la.MMap(zs[len(zs)-l], ToOP(a.Prime))
+		ap := la.MMapD(zs[len(zs)-l], ToOP(a.Prime))
 		w := n.Weights[(len(n.Weights)-l)+1]
 
 		delta = la.MMULT(la.MMDot(w.T(), delta), ap)

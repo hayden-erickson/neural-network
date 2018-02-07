@@ -50,6 +50,20 @@ func MAgg(a, b Matrix, op BOP) Matrix {
 	return m
 }
 
+func MAggD(a, b Matrix, op BOP) Matrix {
+	out := matrix{x: a.Shape()[0], y: b.Shape()[1]}
+	out.data = make([]float64, a.Shape()[0]*a.Shape()[1])
+
+	aData := a.Data()
+	bData := b.Data()
+
+	for i := 0; i < len(aData); i++ {
+		out.data[i] = op(aData[i], bData[i])
+	}
+
+	return out
+}
+
 func Reduce(a []float64, op BOP) float64 {
 	out := a[0]
 
@@ -64,7 +78,7 @@ func MReduce(a []Matrix, op BOP) Matrix {
 	out := a[0]
 
 	for i := 1; i < len(a); i++ {
-		out = MAgg(out, a[i], op)
+		out = MAggD(out, a[i], op)
 	}
 
 	return out
@@ -80,11 +94,39 @@ func MMapI(m Matrix, op IOP) Matrix {
 	return m
 }
 
+func MMapID(m Matrix, op IOP) Matrix {
+	data := m.Data()
+
+	out := matrix{x: m.Shape()[0], y: m.Shape()[1]}
+	out.data = make([]float64, m.Shape()[0]*m.Shape()[1])
+
+	numCols := m.Shape()[1]
+
+	for i := 0; i < len(data); i++ {
+		I := i / numCols
+		J := i % numCols
+		out.data[i] = op(data[i], I, J)
+	}
+
+	return out
+}
+
 func MMap(m Matrix, op OP) Matrix {
-	for i := 0; i < m.Shape()[0]; i++ {
-		for j := 0; j < m.Shape()[1]; j++ {
+	x := m.Shape()[0]
+	y := m.Shape()[1]
+	for i := 0; i < x; i++ {
+		for j := 0; j < y; j++ {
 			*m.At(i, j) = op(*m.At(i, j))
 		}
+	}
+
+	return m
+}
+
+func MMapD(m Matrix, op OP) Matrix {
+	data := m.Data()
+	for i := 0; i < len(data); i++ {
+		data[i] = op(data[i])
 	}
 
 	return m
@@ -132,7 +174,7 @@ func CreateVMapper(op OP) Mapper {
 
 func CreateMatrixOP(op BOP) MatrixBOP {
 	return func(a, b Matrix) Matrix {
-		return MAgg(a, b, op)
+		return MAggD(a, b, op)
 	}
 }
 
@@ -144,7 +186,7 @@ func CreateReducer(op BOP) Reducer {
 
 func CreateMMapper(op OP) MatrixMapper {
 	return func(m Matrix) Matrix {
-		return MMap(m, op)
+		return MMapD(m, op)
 	}
 }
 

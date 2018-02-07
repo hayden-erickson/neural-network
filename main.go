@@ -2,13 +2,81 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
+	"github.com/hayden-erickson/neural-network/la"
 	"github.com/hayden-erickson/neural-network/loaders"
 	"github.com/hayden-erickson/neural-network/nn"
+	"github.com/hayden-erickson/neural-network/parallel"
 )
 
 func main() {
+	benchmarkParFor()
+}
+
+type tester struct {
+	data []float64
+	op   la.OP
+}
+
+func (t tester) getSerialTime() int64 {
+	out := make([]float64, len(t.data))
+
+	start := time.Now().UnixNano()
+
+	for i := 0; i < len(t.data); i++ {
+		out[i] = t.op(t.data[i])
+	}
+
+	finish := time.Now().UnixNano()
+
+	return finish - start
+}
+
+func (t tester) getParallelTime(branch int) int64 {
+
+	start := time.Now().UnixNano()
+
+	parallel.For(t.data, branch, t.op)
+
+	finish := time.Now().UnixNano()
+
+	return finish - start
+}
+
+func printRow(N int, sTime int64, pTimes []int64) {
+	fmt.Printf("%d\t%d\t", N, sTime/1000)
+
+	for i := 0; i < len(pTimes); i++ {
+		fmt.Printf("%s\t", strconv.FormatInt(pTimes[i]/1000, 10))
+	}
+
+	fmt.Println()
+}
+
+func benchmarkParFor() {
+	var N int
+	var i uint
+
+	fmt.Println("# N\t0\t2\t4\t8\t16")
+	pTime := make([]int64, 4)
+
+	for i = 10; i < 28; i++ {
+		N = 1 << i
+
+		t := tester{data: la.RandVector(N), op: la.MultBy(5.0)}
+		sTime := t.getSerialTime()
+		pTime[0] = t.getParallelTime(1)
+		pTime[1] = t.getParallelTime(2)
+		pTime[2] = t.getParallelTime(3)
+		pTime[3] = t.getParallelTime(4)
+
+		printRow(N, sTime, pTime)
+	}
+}
+
+func runSGD() {
 	net, e := nn.NewNetwork([]int{784, 30, 10})
 
 	if e != nil {
@@ -18,7 +86,7 @@ func main() {
 	sgd := nn.SGD{
 		Activation: nn.Sigmoid,
 		Cost:       nn.Quadratic,
-		Eta:        3,
+		Eta:        5,
 		Net:        net,
 	}
 
@@ -46,27 +114,19 @@ func main() {
 		panic(e)
 	}
 
-	fmt.Printf("Running SGD... %s\n", time.Now().Truncate(time.Second))
+	fmt.Printf("epoch\taccuracy\ttime\n")
 
-	fmt.Printf("accuracy: %d/%d\n", Evaluate(sgd.Net, testData), len(testData))
-
-	sgd.Run(trainingData[0:100], 5, 10)
-
-	fmt.Printf("accuracy: %d/%d\n", Evaluate(sgd.Net, testData), len(testData))
-
-	sgd.MRun(trainingData[0:100], 5, 10)
-
-	fmt.Printf("M accuracy: %d/%d\n", Evaluate(sgd.Net, testData), len(testData))
-
-	fmt.Printf("Done running SGD %s\n", time.Now().Truncate(time.Second))
-
+	for i := 0; i < 30; i++ {
+		sgd.MRun(trainingData, 1, 10)
+		fmt.Printf("%d\t%f\t%d\n", i+1, float64(Evaluate(sgd.Net, testData))/100.0, time.Now().UnixNano())
+	}
 }
 
 func Evaluate(n nn.Network, testData []nn.Example) int {
 	var correct int
 
 	for _, e := range testData {
-		if match(n.Prop(e.GetInput(), nn.Sigmoid{}), e.GetOutput()) {
+		if match(n.Prop(e.GetInput(), nn.Sigmoid), e.GetOutput()) {
 			correct++
 		}
 	}

@@ -16,7 +16,6 @@ type SGD struct {
 func (sgd SGD) MRun(trainingData []Example, epochs, miniBatchSize int) {
 	shuffled := shuffle(trainingData)
 	for i := 0; i < epochs; i++ {
-
 		for j := 0; j < len(trainingData)/miniBatchSize; j++ {
 			inputs, desired := miniBatchToMatricies(shuffled[(j * miniBatchSize):((j + 1) * miniBatchSize)])
 			deltaW, deltaB := sgd.Net.MBackProp(inputs, desired, sgd.Activation, sgd.Cost)
@@ -34,11 +33,46 @@ func (sgd SGD) Run(trainingData []Example, epochs, miniBatchSize int) {
 	M := miniBatchSize
 
 	shuffled := shuffle(trainingData)
-	for e := 0; e < epochs; e++ {
 
+	totalW := make([]la.Matrix, len(sgd.Net.Weights))
+	totalB := make([][]float64, len(sgd.Net.Biases))
+
+	for i := range sgd.Net.Weights {
+		totalW[i] = la.ZeroMatrix(sgd.Net.Weights[i].Shape()[0], sgd.Net.Weights[i].Shape()[1])
+		totalB[i] = make([]float64, len(sgd.Net.Biases[i]))
+	}
+
+	for e := 0; e < epochs; e++ {
 		// N must be a multiple of miniBatchSize
 		for i := 0; i < (N / M); i++ {
-			sgd.updateMiniBatch(shuffled[(i * M):((i + 1) * M)])
+			resetWeightsAndBiases(&totalW, &totalB)
+			sgd.updateMiniBatch(shuffled[(i*M):((i+1)*M)], totalW, totalB)
+		}
+	}
+}
+
+func resetWeightsAndBiases(ws *[]la.Matrix, bs *[][]float64) {
+	weights := *ws
+	biases := *bs
+	for i := 0; i < len(weights); i++ {
+		resetMatrix(&weights[i])
+		resetVector(&biases[i])
+	}
+}
+
+func resetVector(v *[]float64) {
+	vec := *v
+	for i := 0; i < len(vec); i++ {
+		vec[i] = 0
+	}
+}
+
+func resetMatrix(m *la.Matrix) {
+	mat := *m
+
+	for i := 0; i < mat.Shape()[0]; i++ {
+		for j := 0; j < mat.Shape()[1]; j++ {
+			*mat.At(i, j) = 0
 		}
 	}
 }
@@ -75,14 +109,7 @@ func shuffle(a []Example) []Example {
 	return a
 }
 
-func (sgd SGD) updateMiniBatch(miniBatch []Example) {
-	totalW := make([]la.Matrix, len(sgd.Net.Weights))
-	totalB := make([][]float64, len(sgd.Net.Biases))
-
-	for i := range sgd.Net.Weights {
-		totalW[i] = la.ZeroMatrix(sgd.Net.Weights[i].Shape()[0], sgd.Net.Weights[i].Shape()[1])
-		totalB[i] = make([]float64, len(sgd.Net.Biases[i]))
-	}
+func (sgd SGD) updateMiniBatch(miniBatch []Example, totalW []la.Matrix, totalB [][]float64) {
 
 	for _, e := range miniBatch {
 		nablaW, nablaB := sgd.Net.BackProp(e, sgd.Activation, sgd.Cost)
