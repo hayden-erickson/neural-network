@@ -1,6 +1,7 @@
 package nn_test
 
 import (
+	"math"
 	"math/rand"
 	"testing"
 	"time"
@@ -68,24 +69,52 @@ var _ = Describe("Sgd", func() {
 
 	Describe("#MRun", func() {
 		It("lowers the cost of the network", func() {
-			origCost := evaluateNet(examples, ToOP(Sigmoid.Fn), sgd.Net)
-			sgd.MRun(examples, 50, 100)
-			newCost := evaluateNet(examples, ToOP(Sigmoid.Fn), sgd.Net)
+			// origCost := evaluateNet(examples, ToOP(Sigmoid.Fn), sgd.Net)
+			var newCorrect int
+			var newCost float64
+			origCorrect, origCost := Evaluate(sgd, examples, binaryMatcher{})
 
-			Expect(newCost).To(BeNumerically(`<`, origCost))
+			for i := 0; i < 10; i++ {
+				sgd.MRun(examples, 50, 100)
+				// newCost := evaluateNet(examples, ToOP(Sigmoid.Fn), sgd.Net)
+				newCorrect, newCost = Evaluate(sgd, examples, binaryMatcher{})
+
+				Expect(newCost).To(BeNumerically(`<`, origCost))
+				origCost = newCost
+			}
+
+			Expect(origCorrect).To(BeNumerically(`<`, newCorrect))
+		})
+
+		It("continually changes the network", func() {
+			oW := make([]la.Matrix, len(sgd.Net.Weights))
+			oB := make([][]float64, len(sgd.Net.Biases))
+
+			for i := 0; i < 10; i++ {
+				copy(oW, sgd.Net.Weights)
+				copy(oB, sgd.Net.Biases)
+
+				sgd.MRun(examples, 50, 100)
+
+				Expect(sgd.Net.Weights).ToNot(Equal(oW))
+				Expect(sgd.Net.Biases).ToNot(Equal(oB))
+			}
 		})
 	})
 
 	Describe("#Run", func() {
 		It("lowers the cost of the network", func() {
-			origCost := evaluateNet(examples, ToOP(Sigmoid.Fn), sgd.Net)
-			sgd.Run(examples, 50, 100)
-			newCost := evaluateNet(examples, ToOP(Sigmoid.Fn), sgd.Net)
+			for i := 0; i < 5; i++ {
+				origCost := evaluateNet(examples, ToOP(Sigmoid.Fn), sgd.Net)
+				sgd.Run(examples, 50, 100)
+				newCost := evaluateNet(examples, ToOP(Sigmoid.Fn), sgd.Net)
 
-			Expect(newCost).To(BeNumerically(`<`, origCost))
+				Expect(newCost).To(BeNumerically(`<`, origCost))
+			}
 		})
 
 	})
+
 })
 
 func getData() []Example {
@@ -129,17 +158,6 @@ func BenchmarkMRun(b *testing.B) {
 	}
 }
 
-func evaluateNet(exs []Example, activation la.OP, n Network) float64 {
-	var desired, actual [][]float64
-
-	for _, e := range exs {
-		desired = append(desired, e.GetOutput())
-		actual = append(actual, n.Prop(e.GetInput(), Sigmoid))
-	}
-
-	return cost(desired, actual)
-}
-
 func matchesDesired(actual, desired []float64) bool {
 	matches := true
 
@@ -158,6 +176,17 @@ func matchesDesired(actual, desired []float64) bool {
 	return matches
 }
 
+func evaluateNet(exs []Example, activation la.OP, n Network) float64 {
+	var desired, actual [][]float64
+
+	for _, e := range exs {
+		desired = append(desired, e.GetOutput())
+		actual = append(actual, n.Prop(e.GetInput(), Sigmoid))
+	}
+
+	return cost(desired, actual)
+}
+
 func cost(desired, actual [][]float64) float64 {
 
 	intermediate := make([]float64, len(desired))
@@ -168,4 +197,16 @@ func cost(desired, actual [][]float64) float64 {
 	}
 
 	return la.AddReduce(intermediate) / float64(2*len(desired))
+}
+
+type binaryMatcher struct{}
+
+func (bm binaryMatcher) Match(a, b []float64) bool {
+	for i := 0; i < len(a); i++ {
+		if math.Abs(a[i]-b[i]) > .025 {
+			return false
+		}
+	}
+
+	return true
 }

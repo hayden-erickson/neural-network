@@ -102,6 +102,96 @@ var _ = Describe("Network", func() {
 		})
 	})
 
+	Describe("#Saturate", func() {
+		var input la.Matrix
+		var net Network
+
+		BeforeEach(func() {
+			input = la.NewMatrix([][]float64{
+				{1, 3, 5, 7},
+				{2, 4, 6, 8},
+			}, false)
+
+			net, _ = NewNetwork([]int{2, 3, 1})
+
+			net.Weights[0] = la.NewMatrix([][]float64{
+				{1, 2},
+				{3, 4},
+				{5, 6},
+			}, false)
+
+			net.Weights[1] = la.NewMatrix([][]float64{{1, 2, 3}}, false)
+
+			net.Biases[0] = []float64{10, 5, 1}
+			net.Biases[1] = []float64{4}
+		})
+
+		It("returns the weighted input and activation output to every layer in the network", func() {
+			weighted, activations := net.Saturate(input, aFunc)
+			Expect(len(weighted)).To(Equal(2))
+			Expect(len(activations)).To(Equal(3))
+
+			// fmt.Println(weighted)
+			Expect(weighted[0]).To(Equal(la.NewMatrix([][]float64{
+				{15, 21, 27, 33},
+				{16, 30, 44, 58},
+				{18, 40, 62, 84},
+			}, false)))
+
+			Expect(weighted[1]).To(Equal(la.NewMatrix([][]float64{
+				{113 / 3.0, 71, 313 / 3.0, 413 / 3.0},
+			}, false)))
+
+			Expect(activations[1]).To(Equal(la.NewMatrix([][]float64{
+				{15 / 3.0, 21 / 3.0, 27 / 3.0, 33 / 3.0},
+				{16 / 3.0, 30 / 3.0, 44 / 3.0, 58 / 3.0},
+				{18 / 3.0, 40 / 3.0, 62 / 3.0, 84 / 3.0},
+			}, false)))
+
+			Expect(activations[2]).To(Equal(la.NewMatrix([][]float64{
+				{113 / 9.0, 71 / 3.0, 313 / 9.0, 413 / 9.0},
+			}, false)))
+		})
+	})
+
+	Describe("#Delta", func() {
+		var actual, desired, weighted la.Matrix
+
+		BeforeEach(func() {
+			actual = la.NewMatrix([][]float64{
+				{10, 10, 10},
+				{5, 5, 5},
+			}, false)
+
+			desired = la.NewMatrix([][]float64{
+				{5, 5, 5},
+				{1, 1, 1},
+			}, false)
+
+			weighted = la.NewMatrix([][]float64{
+				{3, 6, 9},
+				{12, 15, 18},
+			}, false)
+		})
+
+		It("computes the correct values", func() {
+			d := Delta(actual, desired, weighted, aFunc, Quadratic)
+			// 1, 2, 3
+			// 4, 5, 6
+			// *******
+			// 5, 5, 5
+			// 4, 4, 4
+			// ------- =
+			// 5, 10, 15
+			// 16, 20, 24
+
+			Expect(d).To(Equal(la.NewMatrix([][]float64{
+				{5, 5, 5},
+				{4, 4, 4},
+			}, false)))
+		})
+	})
+
 	Describe("#MBackProp", func() {
 		var N int
 		var inputs, desired la.Matrix
@@ -148,3 +238,15 @@ func (t testX) GetOutput() []float64 {
 func randEx(in, out int) Example {
 	return testX{in, out}
 }
+
+type act struct{}
+
+func (a act) Fn(z ...float64) float64 {
+	return z[0] / 3.0
+}
+
+func (a act) Prime(z ...float64) float64 {
+	return z[0] / 3.0
+}
+
+var aFunc = act{}

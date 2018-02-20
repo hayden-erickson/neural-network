@@ -15,6 +15,12 @@ type matrix struct {
 	y    int
 }
 
+type colmajmatrix struct {
+	data []float64
+	x    int
+	y    int
+}
+
 type transposer struct {
 	m matrix
 }
@@ -39,8 +45,62 @@ func (t transposer) Shape() []int {
 	return []int{t.m.y, t.m.x}
 }
 
+func (cm colmajmatrix) T() Matrix {
+	return matrix{
+		x:    cm.y,
+		y:    cm.x,
+		data: cm.data,
+	}
+}
+
+func (cm colmajmatrix) Row(j int) []float64 {
+	out := make([]float64, cm.y)
+
+	for i := 0; i < cm.y; i++ {
+		out[i] = cm.data[i*cm.x+j]
+	}
+
+	return out
+}
+
+func (cm colmajmatrix) Col(j int) []float64 {
+	return cm.data[(j * cm.x):((j + 1) * cm.x)]
+}
+
+func (cm colmajmatrix) At(i int, j int) *float64 {
+	return &cm.data[j*cm.x+i]
+}
+
+func (cm colmajmatrix) Shape() []int {
+	return []int{cm.x, cm.y}
+}
+
+// return the data in row major order
+// for compatibility with data based
+// iterators using 1-dimensional
+// array indexing for speed
+func (cm colmajmatrix) Data() []float64 {
+	out := make([]float64, cm.x*cm.y)
+
+	for i := 0; i < cm.x*cm.y; i++ {
+		I := i / cm.y
+		J := i % cm.y
+		out[I*cm.y+J] = cm.data[i]
+	}
+
+	return out
+}
+
 func (t transposer) Data() []float64 {
-	return t.m.Data()
+	out := make([]float64, t.m.x*t.m.y)
+
+	for i := 0; i < t.m.x*t.m.y; i++ {
+		I := i / t.m.y
+		J := i % t.m.y
+		out[i] = t.m.data[J*t.m.y+I]
+	}
+
+	return out
 }
 
 func (m matrix) T() Matrix {
@@ -55,7 +115,7 @@ func (m matrix) Col(j int) []float64 {
 	out := make([]float64, m.x)
 
 	for i := 0; i < m.x; i++ {
-		out[i] = *m.At(i, j)
+		out[i] = m.data[i*m.y+j]
 	}
 
 	return out

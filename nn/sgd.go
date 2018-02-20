@@ -19,6 +19,7 @@ func (sgd SGD) MRun(trainingData []Example, epochs, miniBatchSize int) {
 		for j := 0; j < len(trainingData)/miniBatchSize; j++ {
 			inputs, desired := miniBatchToMatricies(shuffled[(j * miniBatchSize):((j + 1) * miniBatchSize)])
 			deltaW, deltaB := sgd.Net.MBackProp(inputs, desired, sgd.Activation, sgd.Cost)
+
 			for k, _ := range deltaW {
 				sgd.Net.Weights[k] = la.MSUM(sgd.Net.Weights[k], la.MSCALE(deltaW[k], -sgd.Eta))
 				sgd.Net.Biases[k] = la.VSUM(sgd.Net.Biases[k], la.VSCALE(deltaB[k], -sgd.Eta))
@@ -131,4 +132,26 @@ func (sgd SGD) updateMiniBatch(miniBatch []Example, totalW []la.Matrix, totalB [
 			la.VSUM(sgd.Net.Biases[i],
 				la.VSCALE(totalB[i], lrOverBatch))
 	}
+}
+
+// this returns the Quadratic cost and accuracy based on the given matcher
+func Evaluate(sgd SGD, testData []Example, matcher la.Matcher) (correct int, cost float64) {
+	correct = 0
+	N := len(testData)
+	actual := make([]float64, N)
+
+	for i, e := range testData {
+		desired := e.GetOutput()
+		act := sgd.Net.Prop(e.GetInput(), sgd.Activation)
+		// fmt.Println(act)
+
+		actual[i] = la.AddReduce(la.Agg(act, desired, ToBOP(sgd.Cost.Fn)))
+
+		if matcher.Match(act, desired) {
+			correct++
+		}
+	}
+
+	cost = la.AddReduce(actual) / float64(2*N)
+	return correct, cost
 }

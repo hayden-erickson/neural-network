@@ -8,7 +8,7 @@ import (
 )
 
 var _ = Describe("Matrix", func() {
-	var m Matrix
+	var m, cm Matrix
 	var data [][]float64
 
 	BeforeEach(func() {
@@ -17,33 +17,67 @@ var _ = Describe("Matrix", func() {
 			{1.0, 2.0, 5.0},
 			{2.0, 0.0, 0.0},
 		}
-		m = NewMatrix(data)
+		m = NewMatrix(data, false)
+
+		cm = NewMatrix(data, true)
 	})
 
 	Describe("#At", func() {
 		It("returns the correct element", func() {
 			Expect(data[1][2]).To(Equal(*m.At(1, 2)))
+			Expect(data[1][2]).To(Equal(*cm.At(2, 1)))
+
 			Expect(data[0][1]).To(Equal(*m.At(0, 1)))
+			Expect(data[0][1]).To(Equal(*cm.At(1, 0)))
+
 			Expect(data[2][0]).To(Equal(*m.At(2, 0)))
+			Expect(data[2][0]).To(Equal(*cm.At(0, 2)))
 		})
 
 		It("sets the value when assigned", func() {
 			setTo := 4.0
 			Expect(*m.At(0, 2)).ToNot(Equal(setTo))
+			Expect(*cm.At(0, 2)).ToNot(Equal(setTo))
+
 			*m.At(0, 2) = setTo
+			*cm.At(0, 2) = setTo
+
 			Expect(*m.At(0, 2)).To(Equal(setTo))
+			Expect(*cm.At(0, 2)).To(Equal(setTo))
 		})
 	})
 
 	Describe("#T", func() {
 		It("correctly applies the transpose", func() {
 			trans := m.T()
-			Expect(trans.At(1, 1)).To(Equal(m.At(1, 1)))
-			Expect(trans.At(2, 1)).To(Equal(m.At(1, 2)))
-			Expect(trans.At(0, 2)).To(Equal(m.At(2, 0)))
+			ctrans := cm.T()
 
-			rm := RandMatrix(5, 10)
-			rm.T()
+			Expect(trans.At(1, 1)).To(Equal(m.At(1, 1)))
+			Expect(ctrans.At(1, 1)).To(Equal(cm.At(1, 1)))
+
+			Expect(trans.At(2, 1)).To(Equal(m.At(1, 2)))
+			Expect(ctrans.At(2, 1)).To(Equal(cm.At(1, 2)))
+
+			Expect(trans.At(0, 2)).To(Equal(m.At(2, 0)))
+			Expect(ctrans.At(0, 2)).To(Equal(cm.At(2, 0)))
+
+		})
+	})
+
+	Describe("#Data", func() {
+		It("returns row major data", func() {
+			data = [][]float64{
+				{4.0, 0.0},
+				{2.0, 5.0},
+				{0.0, 0.0},
+			}
+			m = NewMatrix(data, false)
+
+			cm = NewMatrix(data, true)
+
+			Expect(cm.Data()).To(Equal(m.Data()))
+
+			Expect(m.Data()).ToNot(Equal(m.T().Data()))
 		})
 	})
 
@@ -56,7 +90,7 @@ var _ = Describe("Matrix", func() {
 				{4.0, 5.0},
 				{8.0, 10.0},
 				{12.0, 15.0},
-			})
+			}, false)
 
 			Expect(Outer(a, b)).To(Equal(c))
 		})
@@ -77,7 +111,7 @@ var _ = Describe("Matrix", func() {
 			a := NewMatrix([][]float64{
 				{1.0, 2.0, 3.0},
 				{4.0, 5.0, 5.0},
-			})
+			}, false)
 
 			b := []float64{1.0, 2.0, 3.0}
 
@@ -90,13 +124,13 @@ var _ = Describe("Matrix", func() {
 			a := NewMatrix([][]float64{
 				{1, 2, 3},
 				{4, 5, 6},
-			})
+			}, false)
 
 			b := NewMatrix([][]float64{
 				{1, 2, 3, 4},
 				{5, 6, 7, 8},
 				{9, 10, 11, 12},
-			})
+			}, false)
 
 			c := MMDot(a, b)
 

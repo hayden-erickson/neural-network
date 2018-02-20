@@ -24,8 +24,8 @@ func (s sigmoid) Prime(zs ...float64) float64 {
 type quadratic struct{}
 
 func (q quadratic) Fn(as ...float64) float64 {
-	desired := as[1]
 	actual := as[0]
+	desired := as[1]
 	return math.Pow(desired-actual, 2)
 
 	// for i, _ := range desired {
@@ -37,7 +37,20 @@ func (q quadratic) Fn(as ...float64) float64 {
 }
 
 func (q quadratic) Prime(as ...float64) float64 {
-	return as[0] - as[1]
+	return (as[0] - as[1])
+}
+
+type crossEntropy struct{}
+
+func (ce crossEntropy) Fn(zs ...float64) float64 {
+	actual := zs[0]
+	desired := zs[1]
+	// return np.sum(np.nan_to_num(-y*np.log(a)-(1-y)*np.log(1-a)))
+	return -desired*math.Log(actual) - (1-desired)*math.Log(1-actual)
+}
+
+func (ce crossEntropy) Prime(zs ...float64) float64 {
+	return zs[0] - zs[1]
 }
 
 func ToOP(f func(...float64) float64) la.OP {
@@ -53,4 +66,5 @@ func ToBOP(f func(...float64) float64) la.BOP {
 }
 
 var Sigmoid = sigmoid{}
+var CrossEntropy = crossEntropy{}
 var Quadratic = quadratic{}

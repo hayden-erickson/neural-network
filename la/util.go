@@ -1,6 +1,7 @@
 package la
 
 import (
+	"math"
 	"math/rand"
 	"time"
 )
@@ -27,6 +28,11 @@ func RandVector(n int) []float64 {
 	return v
 }
 
+func RandMatrixSquashed(n, m int) Matrix {
+	mat := RandMatrix(n, m)
+	return MSCALE(mat, 1/math.Sqrt(float64(m)))
+}
+
 func RandMatrix(n, m int) Matrix {
 	var d []float64
 
@@ -49,15 +55,32 @@ func ZeroMatrix(n, m int) Matrix {
 	}
 }
 
-func NewMatrix(data [][]float64) Matrix {
-	n := len(data)
-	m := len(data[0])
+func NewColMatrix(n, m int, d []float64) Matrix {
+	return colmajmatrix{
+		x:    n,
+		y:    m,
+		data: d,
+	}
+}
+
+func NewMatrix(data [][]float64, colmaj bool) Matrix {
+	var n, m int
+	n = len(data)
+	m = len(data[0])
 
 	d := make([]float64, n*m)
 
-	for i, _ := range data {
-		for j, _ := range data[i] {
+	for i := 0; i < n; i++ {
+		for j := 0; j < m; j++ {
 			d[i*m+j] = data[i][j]
+		}
+	}
+
+	if colmaj {
+		return colmajmatrix{
+			x:    m,
+			y:    n,
+			data: d,
 		}
 	}
 

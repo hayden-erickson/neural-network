@@ -20,17 +20,17 @@ func getZ(a, b []float64, w la.Matrix) []float64 {
 	return la.VSUM(la.MVDot(w, a), b)
 }
 
-func (n Network) Prop(input []float64, activation Differentiable) []float64 {
-	a := la.CreateVMapper(ToOP(activation.Fn))
-	activations := input
+func (n Network) Prop(input []float64, aFunc Differentiable) []float64 {
+	a := la.CreateVMapper(ToOP(aFunc.Fn))
+	activation := input
 
 	// sigmoid(wa + b)
 	for i := 0; i < len(n.Weights); i++ {
-		activations =
-			a(getZ(activations, n.Biases[i], n.Weights[i]))
+		activation =
+			a(la.VSUM(la.MVDot(n.Weights[i], activation), n.Biases[i]))
 	}
 
-	return activations
+	return activation
 }
 
 func (n Network) BackProp(
@@ -76,6 +76,31 @@ func (n Network) BackProp(
 	return nablaW, nablaB
 }
 
+func (n Network) Saturate(input la.Matrix, a Differentiable) (weighted, activations []la.Matrix) {
+	activations = []la.Matrix{input}
+
+	// === Propagate forward ===
+	// add activation and z
+	for i := 0; i < len(n.Weights); i++ {
+		z := la.MMapI(
+			la.MMDot(n.Weights[i], activations[i]),
+			la.MapVectorCol(n.Biases[i], la.SUM))
+
+		weighted = append(weighted, z)
+		activations = append(activations, la.MMapD(z, ToOP(a.Fn)))
+	}
+
+	return weighted, activations
+}
+
+func Delta(actual, desired, weighted la.Matrix, a, c Differentiable) la.Matrix {
+	mCPrime := la.CreateMatrixOP(ToBOP(c.Prime))
+	// Quadratic
+	// return la.MMULT(mCPrime(actual, desired), la.MMapD(weighted, ToOP(a.Prime)))
+	// Cross Entropy
+	return mCPrime(actual, desired)
+}
+
 func (n Network) MBackProp(
 	input la.Matrix,
 	desired la.Matrix,
@@ -86,61 +111,34 @@ func (n Network) MBackProp(
 	nablaB = make([][]float64, len(n.Biases))
 	nablaW = make([]la.Matrix, len(n.Weights))
 
-	activations := []la.Matrix{input}
-	var zs []la.Matrix
-
-	for i := 0; i < len(n.Weights); i++ {
-		z := la.MMapID(
-			la.MMDot(n.Weights[i], activations[i]),
-			la.MapVectorCol(n.Biases[i], la.SUM))
-
-		zs = append(zs, z)
-		activations = append(activations, la.MMapD(z, ToOP(a.Fn)))
-	}
+	// === Propagate forward ===
+	zs, activations := n.Saturate(input, a)
 
 	actual := activations[len(activations)-1]
 
+	// === Compute Delta ===
 	// delta := la.MULT(cPrime(actual, desired), aPrime(zs[len(zs)-1]))
-	mCPrime := la.CreateMatrixOP(ToBOP(c.Prime))
-	delta := la.MMULT(mCPrime(actual, desired), la.MMapD(zs[len(zs)-1], ToOP(a.Prime)))
+	// mCPrime := la.CreateMatrixOP(ToBOP(c.Prime))
+	// delta := la.MMULT(mCPrime(actual, desired), la.MMapD(zs[len(zs)-1], ToOP(a.Prime)))
+	delta := Delta(actual, desired, zs[len(zs)-1], a, c)
 
-	nablaB[len(nablaB)-1] = rowReduceAvg(delta)
-	nablaW[len(nablaW)-1] = mOuterColReduceAvg(delta, activations[len(activations)-2])
+	nablaB[len(nablaB)-1] = la.RowAvg(delta)
+	nablaW[len(nablaW)-1] = la.MOuterColAvg(delta, activations[len(activations)-2])
 
 	numLayers := len(n.Weights) + 1
 
+	// === Back Propagate ===
 	for l := 2; l < numLayers; l++ {
-		ap := la.MMapD(zs[len(zs)-l], ToOP(a.Prime))
+		ap := la.MMap(zs[len(zs)-l], ToOP(a.Prime))
 		w := n.Weights[(len(n.Weights)-l)+1]
 
 		delta = la.MMULT(la.MMDot(w.T(), delta), ap)
 
-		nablaB[len(nablaB)-l] = rowReduceAvg(delta)
-		nablaW[len(nablaW)-l] = mOuterColReduceAvg(delta, activations[(numLayers-l)-1])
+		nablaB[len(nablaB)-l] = la.RowAvg(delta)
+		nablaW[len(nablaW)-l] = la.MOuterColAvg(delta, activations[(numLayers-l)-1])
 	}
 
 	return nablaW, nablaB
-}
-
-func mOuterColReduceAvg(a, b la.Matrix) la.Matrix {
-	out := make([]la.Matrix, a.Shape()[1])
-
-	for j := 0; j < a.Shape()[1]; j++ {
-		out[j] = la.Outer(a.Col(j), b.Col(j))
-	}
-
-	return la.MSCALE(la.MAddReduce(out), (1 / float64(a.Shape()[1])))
-
-}
-
-func rowReduceAvg(a la.Matrix) []float64 {
-	out := make([]float64, a.Shape()[0])
-
-	for i := 0; i < a.Shape()[0]; i++ {
-		out[i] = la.AddReduce(a.Row(i))
-	}
-
-	return la.VSCALE(out, (1 / float64(a.Shape()[1])))
 }
 
 func NewNetwork(layers []int) (Network, error) {
@@ -152,7 +150,7 @@ func NewNetwork(layers []int) (Network, error) {
 	biases := make([][]float64, len(layers)-1)
 
 	for i := 0; i < len(weights); i++ {
-		weights[i] = la.RandMatrix(layers[i+1], layers[i])
+		weights[i] = la.RandMatrixSquashed(layers[i+1], layers[i])
 		biases[i] = la.RandVector(layers[i+1])
 	}
 
